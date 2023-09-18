@@ -6,7 +6,7 @@
   },
   "angle": {
     "type": "sparkmax",
-    "id": 41,
+    "id": 4,
     "canbus": null
   },
   "encoder": {
@@ -18,7 +18,7 @@
     "drive": false,
     "angle": true
   },
-  "absoluteEncoderOffset": 6.504,
+  "absoluteEncoderOffset": 301.3301969,
   "location": {
     "front": -12,
     "left": 12
