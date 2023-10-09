@@ -371,10 +371,11 @@ public class SwerveMath
    */
   public static void antiJitter(SwerveModuleState2 moduleState, SwerveModuleState2 lastModuleState, double maxSpeed)
   {
-    if (Math.abs(moduleState.speedMetersPerSecond) <= (maxSpeed * 0.01))
+   /*  if (Math.abs(moduleState.speedMetersPerSecond) <= (maxSpeed * 0.01))
     {
       moduleState.angle = lastModuleState.angle;
       moduleState.omegaRadPerSecond = lastModuleState.omegaRadPerSecond;
     }
+    */
   }
 }
