@@ -52,10 +52,10 @@ public class NavXSwerve extends SwerveIMU
   public void factoryDefault()
   {
     // gyro.reset(); // Reported to be slow
-    offset = new Rotation3d(new Quaternion(gyro.getQuaternionW(),
-                                           gyro.getQuaternionX(),
-                                           gyro.getQuaternionY(),
-                                           gyro.getQuaternionZ()));
+    offset = new Rotation3d(new Quaternion((gyro.getQuaternionW()),
+                                           (gyro.getQuaternionX()),
+                                           (gyro.getQuaternionY()),
+                                           (gyro.getQuaternionZ())));
   }
 
   /**
