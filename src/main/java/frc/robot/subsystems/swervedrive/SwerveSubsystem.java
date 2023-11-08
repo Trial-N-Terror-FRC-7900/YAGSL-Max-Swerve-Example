@@ -19,10 +19,17 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.vision.Vision;
+import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.numbers.N1;
+import edu.wpi.first.math.numbers.N3;
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
+import org.photonvision.EstimatedRobotPose;
+
 import swervelib.SwerveController;
 import swervelib.SwerveDrive;
 import swervelib.math.SwerveKinematics2;
@@ -46,6 +53,7 @@ public class SwerveSubsystem extends SubsystemBase
   private       SwerveAutoBuilder autoBuilder = null;
 
   private Vision vision;
+  private Optional<EstimatedRobotPose> visionEstPose;
 
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
@@ -100,7 +108,13 @@ public class SwerveSubsystem extends SubsystemBase
   public void periodic()
   {
     swerveDrive.updateOdometry();
-    //swerveDrive.addVisionMeasurement();
+    visionEstPose = vision.getEstimatedGlobalPose();
+    if(visionEstPose.isPresent()){
+      swerveDrive.addVisionMeasurement(visionEstPose.get().estimatedPose.toPose2d(), 
+                                      visionEstPose.get().timestampSeconds,
+                                      false,
+                                      vision.getEstimationStdDevs(visionEstPose.get().estimatedPose.toPose2d()));
+    }                               
   }
 
   @Override
@@ -138,6 +152,11 @@ public class SwerveSubsystem extends SubsystemBase
   public Pose2d getPose()
   {
     return swerveDrive.getPose();
+  }
+
+  public void addVisiontoPose(Pose2d VisionPose, double timestamp, boolean soft, Matrix<N3, N1> StdDev)
+  {
+    swerveDrive.addVisionMeasurement(getPose(), timestamp, false, null);
   }
 
   /**
