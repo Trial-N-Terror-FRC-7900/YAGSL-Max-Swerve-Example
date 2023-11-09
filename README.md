@@ -2,10 +2,9 @@
 
 YAGSL Example: https://github.com/BroncBotz3481/YAGSL-Example
 
-## Disclaimer of Known "Working" Branch
-We don't really use Github properly so most things are done in the Main Branch
-The known "working" verion is a few commits ago: https://github.com/Trial-N-Terror-FRC-7900/YAGSL-Max-Swerve-Example/tree/c4b102a2671e1d8059672fbd6f114b84efcd1bc9
+## Disclaimer
 
+This wasn't originally supposed to be a good example for other teams, but we have no issue with it becoming that. We will try our best to keep the Main workng properly, but if you have issues please open an issue. 
 
 # Tips and Tricks
 
