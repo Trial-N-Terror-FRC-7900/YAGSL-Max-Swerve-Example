@@ -29,3 +29,9 @@ If the robot does not follow the Path, but PathPlanner believes it does adjust t
 
 ### NavX Quaternions Issues
 As of the 2023.0.3 Version of the NavX lib there is issues with how the NavX reports quaternions. So in our example we multiply them by 0.5 which fixed the issues for us. CD Thread detailing more about the problem and potential fixes from the NavX team: https://www.chiefdelphi.com/t/navx-quaternion-units/443538?u=technologyman00
+
+# Todo
+### Add in Auto Selection with https://docs.wpilib.org/en/stable/docs/software/dashboards/smartdashboard/choosing-an-autonomous-program-from-smartdashboard.html
+### Vision (Already Started in Vision Branch)
+### Sparkmax Absolute Encoder offsets in code
+
