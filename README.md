@@ -2,7 +2,7 @@
 
 YAGSL Example: https://github.com/BroncBotz3481/YAGSL-Example
 
-## Disclaimer of Knwon "Working" Branch
+## Disclaimer of Known "Working" Branch
 We don't really use Github properly so most things are done in the Main Branch
 The known "working" verion is a few commits ago: https://github.com/Trial-N-Terror-FRC-7900/YAGSL-Max-Swerve-Example/tree/c4b102a2671e1d8059672fbd6f114b84efcd1bc9
 
