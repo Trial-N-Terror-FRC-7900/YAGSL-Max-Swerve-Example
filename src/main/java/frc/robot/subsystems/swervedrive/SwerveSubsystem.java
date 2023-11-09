@@ -18,8 +18,6 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import frc.robot.subsystems.vision.Vision;
-
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -44,8 +42,6 @@ public class SwerveSubsystem extends SubsystemBase
    * paths with events.
    */
   private       SwerveAutoBuilder autoBuilder = null;
-
-  private Vision vision;
 
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
@@ -100,7 +96,6 @@ public class SwerveSubsystem extends SubsystemBase
   public void periodic()
   {
     swerveDrive.updateOdometry();
-    //swerveDrive.addVisionMeasurement();
   }
 
   @Override
