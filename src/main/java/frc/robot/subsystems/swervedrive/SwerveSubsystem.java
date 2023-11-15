@@ -21,6 +21,8 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
 import swervelib.SwerveController;
 import swervelib.SwerveDrive;
 import swervelib.math.SwerveKinematics2;
@@ -29,6 +31,8 @@ import swervelib.parser.SwerveDriveConfiguration;
 import swervelib.parser.SwerveParser;
 import swervelib.telemetry.SwerveDriveTelemetry;
 import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
+import org.photonvision.EstimatedRobotPose;
+import frc.robot.subsystems.Vision.Vision;
 
 public class SwerveSubsystem extends SubsystemBase
 {
@@ -42,6 +46,9 @@ public class SwerveSubsystem extends SubsystemBase
    * paths with events.
    */
   private       SwerveAutoBuilder autoBuilder = null;
+
+  private Vision vision;
+  private Optional<EstimatedRobotPose> visionEstPose;
 
   /**
    * Initialize {@link SwerveDrive} with the directory provided.
@@ -96,6 +103,13 @@ public class SwerveSubsystem extends SubsystemBase
   public void periodic()
   {
     swerveDrive.updateOdometry();
+    visionEstPose = vision.getEstimatedGlobalPose();
+  if(visionEstPose.isPresent()){
+      swerveDrive.addVisionMeasurement(visionEstPose.get().estimatedPose.toPose2d(),
+                                      visionEstPose.get().timestampSeconds,
+                                     false, 
+                                      vision.getEstimationStdDevs(visionEstPose.get().estimatedPose.toPose2d()));
+  }
   }
 
   @Override
@@ -323,4 +337,7 @@ public class SwerveSubsystem extends SubsystemBase
 
     return autoBuilder.fullAuto(pathGroup);
   }
+
+
+  
 }
