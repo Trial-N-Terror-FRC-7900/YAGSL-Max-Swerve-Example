@@ -89,6 +89,8 @@ public class RobotContainer
   m_chooser.setDefaultOption("Newexampleauto", getnewexampleautoCommand());
   m_chooser.addOption("exampleauto", getexampleautoCommand());
   m_chooser.addOption("otherexampleauto", getotherexampleautoCommand());
+  m_chooser.addOption("123exampleauto", getonwtwothreeexampleautoCommand());
+
   // Put the chooser on the dashboard
 SmartDashboard.putData(m_chooser);
     drivebase.setDefaultCommand(!RobotBase.isSimulation() ? closedAbsoluteDrive : closedAbsoluteDrive);
@@ -131,6 +133,12 @@ SmartDashboard.putData(m_chooser);
   {
     // An example command will be run in autonomous
     return Autos.otherexampleauto(drivebase);
+  }
+
+  public Command getonwtwothreeexampleautoCommand()
+  {
+    // An example command will be run in autonomous
+    return Autos.onetwothree_exampleauto(drivebase);
   }
 
   public Command getAutonomousCommand() {
