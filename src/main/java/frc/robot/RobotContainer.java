@@ -10,7 +10,6 @@ import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
-import edu.wpi.first.wpilibj2.command.RepeatCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
@@ -22,6 +21,8 @@ import frc.robot.commands.swervedrive.drivebase.AbsoluteFieldDrive;
 import frc.robot.commands.swervedrive.drivebase.TeleopDrive;
 import frc.robot.subsystems.swervedrive.SwerveSubsystem;
 import java.io.File;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a "declarative" paradigm, very
@@ -32,7 +33,10 @@ public class RobotContainer
 {
 
   // The robot's subsystems and commands are defined here...
-  private final SwerveSubsystem drivebase = new SwerveSubsystem(new File(Filesystem.getDeployDirectory(), "swerve"));
+  private final SwerveSubsystem drivebase = new SwerveSubsystem(new File(Filesystem.getDeployDirectory(),
+                                                                         "swerve"));
+ // A chooser for autonomous commands
+ SendableChooser<Command> m_chooser = new SendableChooser<>();
 
   
   // CommandJoystick rotationController = new CommandJoystick(1);
@@ -81,7 +85,14 @@ public class RobotContainer
         () -> MathUtil.applyDeadband(driverController.getY(), OperatorConstants.LEFT_Y_DEADBAND),
         () -> MathUtil.applyDeadband(driverController.getX(), OperatorConstants.LEFT_X_DEADBAND),
         () -> -driverController.getRawAxis(3), () -> true, false, true);
+  // Add commands to the autonomous command chooser
+  m_chooser.setDefaultOption("Newexampleauto", getnewexampleautoCommand());
+  m_chooser.addOption("exampleauto", getexampleautoCommand());
+  m_chooser.addOption("otherexampleauto", getotherexampleautoCommand());
+  m_chooser.addOption("123exampleauto", getonwtwothreeexampleautoCommand());
 
+  // Put the chooser on the dashboard
+SmartDashboard.putData(m_chooser);
     drivebase.setDefaultCommand(!RobotBase.isSimulation() ? closedAbsoluteDrive : closedAbsoluteDrive);
   }
 
@@ -98,7 +109,7 @@ public class RobotContainer
 
     new JoystickButton(driverXbox, 1).onTrue((new InstantCommand(drivebase::zeroGyro)));
     new JoystickButton(driverXbox, 3).onTrue(new InstantCommand(drivebase::addFakeVisionReading));
-    new JoystickButton(driverXbox, 3).whileTrue(new RepeatCommand(new InstantCommand(drivebase::lock, drivebase)));
+//    new JoystickButton(driverXbox, 3).whileTrue(new RepeatCommand(new InstantCommand(drivebase::lock, drivebase)));
   }
 
   /**
@@ -106,10 +117,32 @@ public class RobotContainer
    *
    * @return the command to run in autonomous
    */
-  public Command getAutonomousCommand()
+  public Command getnewexampleautoCommand()
+  {
+    // An example command will be run in autonomous
+    return Autos.Newexampleauto(drivebase);
+  }
+
+  public Command getexampleautoCommand()
   {
     // An example command will be run in autonomous
     return Autos.exampleAuto(drivebase);
+  }
+
+  public Command getotherexampleautoCommand()
+  {
+    // An example command will be run in autonomous
+    return Autos.otherexampleauto(drivebase);
+  }
+
+  public Command getonwtwothreeexampleautoCommand()
+  {
+    // An example command will be run in autonomous
+    return Autos.onetwothree_exampleauto(drivebase);
+  }
+
+  public Command getAutonomousCommand() {
+    return m_chooser.getSelected();
   }
 
   public void setDriveMode()
