@@ -18,10 +18,17 @@ import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.subsystems.vision.Vision;
+import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.numbers.N1;
+import edu.wpi.first.math.numbers.N3;
+
 import java.io.File;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import org.photonvision.EstimatedRobotPose;
 
 import swervelib.SwerveController;
 import swervelib.SwerveDrive;
@@ -31,8 +38,6 @@ import swervelib.parser.SwerveDriveConfiguration;
 import swervelib.parser.SwerveParser;
 import swervelib.telemetry.SwerveDriveTelemetry;
 import swervelib.telemetry.SwerveDriveTelemetry.TelemetryVerbosity;
-import org.photonvision.EstimatedRobotPose;
-import frc.robot.subsystems.Vision.Vision;
 
 public class SwerveSubsystem extends SubsystemBase
 {
@@ -104,12 +109,12 @@ public class SwerveSubsystem extends SubsystemBase
   {
     swerveDrive.updateOdometry();
     visionEstPose = vision.getEstimatedGlobalPose();
-  if(visionEstPose.isPresent()){
-      swerveDrive.addVisionMeasurement(visionEstPose.get().estimatedPose.toPose2d(),
+    if(visionEstPose.isPresent()){
+      swerveDrive.addVisionMeasurement(visionEstPose.get().estimatedPose.toPose2d(), 
                                       visionEstPose.get().timestampSeconds,
-                                     false, 
+                                      false,
                                       vision.getEstimationStdDevs(visionEstPose.get().estimatedPose.toPose2d()));
-  }
+    }                               
   }
 
   @Override
@@ -147,6 +152,11 @@ public class SwerveSubsystem extends SubsystemBase
   public Pose2d getPose()
   {
     return swerveDrive.getPose();
+  }
+
+  public void addVisiontoPose(Pose2d VisionPose, double timestamp, boolean soft, Matrix<N3, N1> StdDev)
+  {
+    swerveDrive.addVisionMeasurement(getPose(), timestamp, false, null);
   }
 
   /**
@@ -337,7 +347,4 @@ public class SwerveSubsystem extends SubsystemBase
 
     return autoBuilder.fullAuto(pathGroup);
   }
-
-
-  
 }
