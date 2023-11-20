@@ -955,4 +955,8 @@ public class SwerveDrive
     enableSecondOrderKinematics(0);
   }
 
+  public void setRotationToCurrentHeading()
+  {
+    lastHeadingRadians = getYaw().getRadians();
+  }
 }

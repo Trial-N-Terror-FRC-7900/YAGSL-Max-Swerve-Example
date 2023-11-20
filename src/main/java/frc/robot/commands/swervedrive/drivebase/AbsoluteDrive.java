@@ -62,6 +62,21 @@ public class AbsoluteDrive extends CommandBase
   @Override
   public void initialize()
   {
+    double currentHeading = swerve.getHeading().getRadians();
+    // Get the desired chassis speeds based on a 2 joystick module.
+
+    ChassisSpeeds desiredSpeeds = swerve.getTargetSpeeds(0, 0, Math.sin(currentHeading), Math.cos(currentHeading));
+
+    // Limit velocity to prevent tippy
+    Translation2d translation = SwerveController.getTranslation2d(desiredSpeeds);
+    translation = SwerveMath.limitVelocity(translation, swerve.getFieldVelocity(), swerve.getPose(),
+    Constants.LOOP_TIME, Constants.ROBOT_MASS, List.of(Constants.CHASSIS),
+    swerve.getSwerveDriveConfiguration());
+    SmartDashboard.putNumber("LimitedTranslation", translation.getX());
+    SmartDashboard.putString("Translation", translation.toString());
+
+    // Make the robot move
+    swerve.drive(translation, desiredSpeeds.omegaRadiansPerSecond, true, isOpenLoop);
   }
 
   // Called every time the scheduler runs while the command is scheduled.
@@ -100,6 +115,4 @@ public class AbsoluteDrive extends CommandBase
   {
     return false;
   }
-
-
 }

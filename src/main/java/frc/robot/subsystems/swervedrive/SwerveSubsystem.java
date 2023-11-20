@@ -323,4 +323,11 @@ public class SwerveSubsystem extends SubsystemBase
 
     return autoBuilder.fullAuto(pathGroup);
   }
+
+  /* 
+  public Command setrotationtocurrentHeading2() {
+    // implicitly require `this`
+    return this.runOnce(() -> swerveDrive.setRotationToCurrentHeading());
+  }
+  */
 }

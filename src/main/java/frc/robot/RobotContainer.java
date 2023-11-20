@@ -10,6 +10,7 @@ import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.InstantCommand;
+import edu.wpi.first.wpilibj2.command.RepeatCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandJoystick;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
@@ -86,10 +87,10 @@ public class RobotContainer
         () -> MathUtil.applyDeadband(driverController.getX(), OperatorConstants.LEFT_X_DEADBAND),
         () -> -driverController.getRawAxis(3), () -> true, false, true);
   // Add commands to the autonomous command chooser
-  m_chooser.setDefaultOption("Newexampleauto", getnewexampleautoCommand());
-  m_chooser.addOption("exampleauto", getexampleautoCommand());
-  m_chooser.addOption("otherexampleauto", getotherexampleautoCommand());
-  m_chooser.addOption("123exampleauto", getonwtwothreeexampleautoCommand());
+  m_chooser.setDefaultOption("Newexampleauto", Autos.Newexampleauto(drivebase));
+  m_chooser.addOption("exampleauto", Autos.exampleAuto(drivebase));
+  m_chooser.addOption("otherexampleauto", Autos.otherexampleauto(drivebase));
+  m_chooser.addOption("123exampleauto", Autos.onetwothree_exampleauto(drivebase));
 
   // Put the chooser on the dashboard
 SmartDashboard.putData(m_chooser);
@@ -109,7 +110,7 @@ SmartDashboard.putData(m_chooser);
 
     new JoystickButton(driverXbox, 1).onTrue((new InstantCommand(drivebase::zeroGyro)));
     new JoystickButton(driverXbox, 3).onTrue(new InstantCommand(drivebase::addFakeVisionReading));
-//    new JoystickButton(driverXbox, 3).whileTrue(new RepeatCommand(new InstantCommand(drivebase::lock, drivebase)));
+    new JoystickButton(driverXbox, 4).whileTrue(new RepeatCommand(new InstantCommand(drivebase::lock, drivebase)));
   }
 
   /**
@@ -117,29 +118,7 @@ SmartDashboard.putData(m_chooser);
    *
    * @return the command to run in autonomous
    */
-  public Command getnewexampleautoCommand()
-  {
-    // An example command will be run in autonomous
-    return Autos.Newexampleauto(drivebase);
-  }
 
-  public Command getexampleautoCommand()
-  {
-    // An example command will be run in autonomous
-    return Autos.exampleAuto(drivebase);
-  }
-
-  public Command getotherexampleautoCommand()
-  {
-    // An example command will be run in autonomous
-    return Autos.otherexampleauto(drivebase);
-  }
-
-  public Command getonwtwothreeexampleautoCommand()
-  {
-    // An example command will be run in autonomous
-    return Autos.onetwothree_exampleauto(drivebase);
-  }
 
   public Command getAutonomousCommand() {
     return m_chooser.getSelected();

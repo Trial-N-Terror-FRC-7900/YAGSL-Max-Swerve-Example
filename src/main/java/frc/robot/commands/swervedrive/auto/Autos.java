@@ -142,7 +142,7 @@ public final class Autos
           swerve
 // The drive subsystem. Used to properly set the requirements of path following commands
       );
-      return Commands.sequence(autoBuilder.fullAuto(example1));
+      return Commands.sequence(autoBuilder.fullAuto(example1)/* , swerve.setrotationtocurrentHeading2()*/);
     }
 //    swerve.postTrajectory(example);
     return Commands.sequence(new FollowTrajectory(swerve, example, true));
@@ -191,7 +191,7 @@ public final class Autos
           swerve
 // The drive subsystem. Used to properly set the requirements of path following commands
       );
-      return Commands.sequence(autoBuilder.fullAuto(example1));
+      return Commands.sequence(autoBuilder.fullAuto(example1)/* , swerve.setrotationtocurrentHeading2()*/);
     }
 //    swerve.postTrajectory(example);
     return Commands.sequence(new FollowTrajectory(swerve, example, true));
@@ -223,7 +223,7 @@ public final class Autos
           swerve
 // The drive subsystem. Used to properly set the requirements of path following commands
       );
-      return Commands.sequence(autoBuilder.fullAuto(example1));
+      return Commands.sequence(autoBuilder.fullAuto(example1)/* , swerve.setrotationtocurrentHeading2()*/);
 //    swerve.postTrajectory(example);
   }
 
