@@ -61,6 +61,8 @@ public class SwerveModule
    */
   private boolean                synchronizeEncoderQueued = false;
 
+  public boolean AbsoluteEncoderError = false;
+
   /**
    * Construct the swerve module and initialize the swerve module motors and absolute encoder.
    *
@@ -280,10 +282,12 @@ public class SwerveModule
       angle = absoluteEncoder.getAbsolutePosition() - angleOffset;
       if (absoluteEncoder.readingError)
       {
+        AbsoluteEncoderError = true;
         angle = getRelativePosition();
       }
     } else
     {
+      AbsoluteEncoderError = true;
       angle = getRelativePosition();
     }
     angle %= 360;
@@ -293,6 +297,10 @@ public class SwerveModule
     }
 
     return angle;
+  }
+
+  public boolean getAbsoluteEncoderError(){
+    return AbsoluteEncoderError;
   }
 
   /**
