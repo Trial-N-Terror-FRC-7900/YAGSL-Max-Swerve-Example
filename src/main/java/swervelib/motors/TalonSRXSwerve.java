@@ -115,6 +115,17 @@ public class TalonSRXSwerve extends SwerveMotor
     return this;
   }
 
+    /**
+   * Set the Relative Encoder to be the used encoder
+   *
+   * @param encoder The encoder to use.
+   */
+  @Override
+  public void setPIDtoRelativeEncoder()
+  {
+    //Do Nothing
+  }
+
   /**
    * Configure the integrated encoder for the swerve module. Sets the conversion factors for position and velocity.
    *
@@ -420,5 +431,9 @@ public class TalonSRXSwerve extends SwerveMotor
   public boolean isAttachedAbsoluteEncoder()
   {
     return absoluteEncoder;
+  }
+
+  public void setPIDtoAbsoluteEncoder(){
+    // Nothging
   }
 }

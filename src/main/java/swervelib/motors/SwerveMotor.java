@@ -1,5 +1,7 @@
 package swervelib.motors;
 
+import com.revrobotics.RelativeEncoder;
+
 import swervelib.encoders.SwerveAbsoluteEncoder;
 import swervelib.parser.PIDFConfig;
 
@@ -153,4 +155,14 @@ public abstract class SwerveMotor
    * @return connected absolute encoder state.
    */
   public abstract boolean isAttachedAbsoluteEncoder();
+
+  /**
+   * Set the PID to use the Relative Encoder
+   */
+  public abstract void setPIDtoRelativeEncoder();
+
+  /**
+   * Set the PID to use the Absolute Encoder
+   */
+  public abstract void setPIDtoAbsoluteEncoder();
 }

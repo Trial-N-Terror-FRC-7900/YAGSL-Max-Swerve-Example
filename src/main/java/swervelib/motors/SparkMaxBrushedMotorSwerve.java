@@ -209,6 +209,17 @@ public class SparkMaxBrushedMotorSwerve extends SwerveMotor
   }
 
   /**
+   * Set the Relative Encoder to be the used encoder
+   *
+   * @param encoder The encoder to use.
+   */
+  @Override
+  public void setPIDtoRelativeEncoder()
+  {
+    pid.setFeedbackDevice(encoder);
+  }
+
+  /**
    * Configure the integrated encoder for the swerve module. Sets the conversion factors for position and velocity.
    *
    * @param positionConversionFactor The conversion factor to apply.
@@ -391,5 +402,9 @@ public class SparkMaxBrushedMotorSwerve extends SwerveMotor
     {
       encoder.setPosition(position);
     }
+  }
+
+  public void setPIDtoAbsoluteEncoder(){
+    // Nothging
   }
 }

@@ -2,6 +2,7 @@ package swervelib.motors;
 
 import com.revrobotics.AbsoluteEncoder;
 import com.revrobotics.CANSparkMax;
+import com.revrobotics.REVLibError;
 import com.revrobotics.CANSparkMax.ControlType;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
@@ -37,6 +38,8 @@ public class SparkMaxSwerve extends SwerveMotor
    * Factory default already occurred.
    */
   private boolean               factoryDefaultOccurred = false;
+
+  private boolean               failover = false;
 
   /**
    * Initialize the swerve motor.
@@ -164,6 +167,36 @@ public class SparkMaxSwerve extends SwerveMotor
       pid.setFeedbackDevice(absoluteEncoder);
     }
     return this;
+  }
+
+  /**
+   * Set the Relative Encoder to be the used encoder
+   *
+   * @param encoder The encoder to use.
+   */
+  @Override
+  public void setPIDtoRelativeEncoder()
+  {
+    if(!failover){
+      if(pid.setFeedbackDevice(encoder) == REVLibError.kOk){
+        failover = true;
+      }
+    }
+  }
+
+    /**
+   * Set the Relative Encoder to be the used encoder
+   *
+   * @param encoder The encoder to use.
+   */
+  @Override
+  public void setPIDtoAbsoluteEncoder()
+  {
+    if(failover){
+      if(pid.setFeedbackDevice(absoluteEncoder) == REVLibError.kOk){
+        failover = false;
+      }
+    }
   }
 
   /**
@@ -341,7 +374,10 @@ public class SparkMaxSwerve extends SwerveMotor
   @Override
   public double getVelocity()
   {
-    return absoluteEncoder == null ? encoder.getVelocity() : absoluteEncoder.getVelocity();
+    if(failover){
+      return absoluteEncoder == null ? encoder.getVelocity() : absoluteEncoder.getVelocity();
+    }
+    return encoder.getVelocity();
   }
 
   /**
@@ -352,7 +388,10 @@ public class SparkMaxSwerve extends SwerveMotor
   @Override
   public double getPosition()
   {
-    return absoluteEncoder == null ? encoder.getPosition() : absoluteEncoder.getPosition();
+    if(failover){
+      return absoluteEncoder == null ? encoder.getPosition() : absoluteEncoder.getPosition();
+    }
+    return encoder.getPosition();
   }
 
   /**

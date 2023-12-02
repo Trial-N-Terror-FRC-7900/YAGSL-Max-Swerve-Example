@@ -283,7 +283,12 @@ public class SwerveModule
       if (absoluteEncoder.readingError)
       {
         AbsoluteEncoderError = true;
+        angleMotor.setPIDtoRelativeEncoder();
         angle = getRelativePosition();
+      }
+      else{
+        AbsoluteEncoderError = false;
+        angleMotor.setPIDtoAbsoluteEncoder();
       }
     } else
     {

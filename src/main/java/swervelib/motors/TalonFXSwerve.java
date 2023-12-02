@@ -128,6 +128,21 @@ public class TalonFXSwerve extends SwerveMotor
     return this;
   }
 
+    /**
+   * Set the Relative Encoder to be the used encoder
+   *
+   * @param encoder The encoder to use.
+   */
+  @Override
+  public void setPIDtoRelativeEncoder()
+  {
+    //Do Nothing
+  }
+
+  public void setPIDtoAbsoluteEncoder(){
+    // Nothging
+  }
+
   /**
    * Configure the integrated encoder for the swerve module. Sets the conversion factors for position and velocity.
    *

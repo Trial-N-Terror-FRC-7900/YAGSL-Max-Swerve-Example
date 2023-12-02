@@ -16,6 +16,10 @@ public class SparkMaxEncoderSwerve extends SwerveAbsoluteEncoder
    */
   public AbsoluteEncoder encoder;
 
+  private double encoderAccumulator = 0;
+
+  private double encoderAccumulatorCount = 0;
+
   /**
    * Create the {@link AbsoluteEncoder} object as a duty cycle. from the {@link CANSparkMax} motor.
    *
@@ -72,7 +76,28 @@ public class SparkMaxEncoderSwerve extends SwerveAbsoluteEncoder
   @Override
   public double getAbsolutePosition()
   {
-    return encoder.getPosition();
+    double angle = encoder.getPosition();
+
+    if(!readingError){
+      encoderAccumulator += angle;
+      encoderAccumulatorCount++;
+      if(encoderAccumulatorCount > 3){
+        if((encoderAccumulator/encoderAccumulatorCount) == angle){
+          readingError = true;
+        }
+      }
+    }
+    else{
+      if(encoderAccumulatorCount > 3){
+        if((encoderAccumulator/encoderAccumulatorCount) != angle){
+          readingError = false;
+          encoderAccumulator = 0;
+          encoderAccumulatorCount = 0;
+        }
+      }
+    }
+
+    return angle;
   }
 
   /**
