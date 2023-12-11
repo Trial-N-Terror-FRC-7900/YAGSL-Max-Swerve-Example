@@ -102,8 +102,9 @@ public class CANCoderSwerve extends SwerveAbsoluteEncoder
 
     // Taken from democat's library.
     // Source: https://github.com/democat3457/swerve-lib/blob/7c03126b8c22f23a501b2c2742f9d173a5bcbc40/src/main/java/com/swervedrivespecialties/swervelib/ctre/CanCoderFactoryBuilder.java#L51-L74
-    ErrorCode code = encoder.getLastError();
-    for (int i = 0; i < maximumRetries; i++)
+    ErrorCode code     = encoder.getLastError();
+    int       ATTEMPTS = 3;
+    for (int i = 0; i < ATTEMPTS; i++)
     {
       if (code == ErrorCode.OK)
       {
@@ -136,16 +137,5 @@ public class CANCoderSwerve extends SwerveAbsoluteEncoder
   public Object getAbsoluteEncoder()
   {
     return encoder;
-  }
-
-  /**
-   * Get the velocity in degrees/sec.
-   *
-   * @return velocity in degrees/sec.
-   */
-  @Override
-  public double getVelocity()
-  {
-    return encoder.getVelocity();
   }
 }

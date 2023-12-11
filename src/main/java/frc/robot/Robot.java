@@ -5,6 +5,8 @@
 package frc.robot;
 
 import com.pathplanner.lib.server.PathPlannerServer;
+
+import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
@@ -13,8 +15,8 @@ import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import java.io.File;
 import java.io.IOException;
 import swervelib.parser.SwerveParser;
-import edu.wpi.first.wpilibj.DataLogManager;
-import edu.wpi.first.wpilibj.DriverStation;
+import frc.robot.Constants.Drivebase;
+//import frc.robot.subsystems.vision.Vision;
 
 /**
  * The VM is configured to automatically run this class, and to call the functions corresponding to each mode, as
@@ -28,6 +30,7 @@ public class Robot extends TimedRobot
   private        Command m_autonomousCommand;
 
   private RobotContainer m_robotContainer;
+  //private Vision vision;
 
   private Timer disabledTimer;
 
@@ -47,12 +50,6 @@ public class Robot extends TimedRobot
   @Override
   public void robotInit()
   {
-
-    DataLogManager.start();
-
-    // Record both DS control and joystick data
-    DriverStation.startDataLog(DataLogManager.getLog());
-
     PathPlannerServer.startServer(5811);
     // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
     // autonomous chooser on the dashboard.
@@ -185,5 +182,4 @@ public class Robot extends TimedRobot
   public void simulationPeriodic()
   {
   }
-
 }

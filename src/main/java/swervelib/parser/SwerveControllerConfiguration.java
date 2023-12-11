@@ -18,29 +18,30 @@ public class SwerveControllerConfiguration
   public final double
                           angleJoyStickRadiusDeadband; // Deadband for the minimum hypot for the heading joystick.
   /**
+   * Maximum robot speed in meters per second.
+   */
+  public       double     maxSpeed;
+  /**
    * Maximum angular velocity in rad/s
    */
   public       double     maxAngularVelocity;
 
   /**
-   * Construct the swerve controller configuration. Assumes robot is square to fetch maximum angular velocity.
+   * Construct the swerve controller configuration.
    *
-   * @param driveCfg                    {@link SwerveDriveConfiguration} to fetch the first module X and Y used to
-   *                                    calculate the maximum angular velocity.
+   * @param driveCfg                    Drive configuration.
    * @param headingPIDF                 Heading PIDF configuration.
    * @param angleJoyStickRadiusDeadband Deadband on radius of angle joystick.
-   * @param maxSpeedMPS                 Maximum speed in meters per second for angular velocity, remember if you have
-   *                                    feet per second use {@link edu.wpi.first.math.util.Units#feetToMeters(double)}.
    */
   public SwerveControllerConfiguration(
       SwerveDriveConfiguration driveCfg,
       PIDFConfig headingPIDF,
-      double angleJoyStickRadiusDeadband,
-      double maxSpeedMPS)
+      double angleJoyStickRadiusDeadband)
   {
+    this.maxSpeed = driveCfg.maxSpeed;
     this.maxAngularVelocity =
         calculateMaxAngularVelocity(
-            maxSpeedMPS,
+            driveCfg.maxSpeed,
             Math.abs(driveCfg.moduleLocationsMeters[0].getX()),
             Math.abs(driveCfg.moduleLocationsMeters[0].getY()));
     this.headingPIDF = headingPIDF;
@@ -53,11 +54,9 @@ public class SwerveControllerConfiguration
    *
    * @param driveCfg    Drive configuration.
    * @param headingPIDF Heading PIDF configuration.
-   * @param maxSpeedMPS Maximum speed in meters per second for angular velocity, remember if you have feet per second
-   *                    use {@link edu.wpi.first.math.util.Units#feetToMeters(double)}.
    */
-  public SwerveControllerConfiguration(SwerveDriveConfiguration driveCfg, PIDFConfig headingPIDF, double maxSpeedMPS)
+  public SwerveControllerConfiguration(SwerveDriveConfiguration driveCfg, PIDFConfig headingPIDF)
   {
-    this(driveCfg, headingPIDF, 0.5, maxSpeedMPS);
+    this(driveCfg, headingPIDF, 0.5);
   }
 }

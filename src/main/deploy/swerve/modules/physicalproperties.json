@@ -1,7 +1,14 @@
 {
+<<<<<<< HEAD
   "conversionFactor": {
     "drive": 0.05082576649756735557767588658299,
     "angle": 360
+=======
+  "wheelDiameter": 2.8,
+  "gearRatio": {
+    "drive": 4.714285714285714,
+    "angle": 1
+>>>>>>> parent of 1fb924d (Merge branch 'main' into Vision)
   },
   "currentLimit": {
     "drive": 40,
@@ -11,6 +18,10 @@
     "drive": 0.25,
     "angle": 0.25
   },
+  "encoderPulsePerRotation": {
+    "drive": 1,
+    "angle": 1
+  },
   "wheelGripCoefficientOfFriction": 1.19,
-  "optimalVoltage": 12
+  "angleMotorFreeSpeedRPM": 5676
 }

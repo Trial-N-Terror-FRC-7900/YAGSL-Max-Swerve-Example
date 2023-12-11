@@ -22,8 +22,6 @@ import frc.robot.commands.swervedrive.drivebase.AbsoluteFieldDrive;
 import frc.robot.commands.swervedrive.drivebase.TeleopDrive;
 import frc.robot.subsystems.swervedrive.SwerveSubsystem;
 import java.io.File;
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a "declarative" paradigm, very
@@ -34,10 +32,7 @@ public class RobotContainer
 {
 
   // The robot's subsystems and commands are defined here...
-  private final SwerveSubsystem drivebase = new SwerveSubsystem(new File(Filesystem.getDeployDirectory(),
-                                                                         "swerve"));
- // A chooser for autonomous commands
- SendableChooser<Command> m_chooser = new SendableChooser<>();
+  private final SwerveSubsystem drivebase = new SwerveSubsystem(new File(Filesystem.getDeployDirectory(), "swerve"));
 
   
   // CommandJoystick rotationController = new CommandJoystick(1);
@@ -65,7 +60,8 @@ public class RobotContainer
                                                           () -> MathUtil.applyDeadband(driverXbox.getLeftX(),
                                                                                        OperatorConstants.LEFT_X_DEADBAND),
                                                           () -> -driverXbox.getRightX(),
-                                                          () -> -driverXbox.getRightY());
+                                                          () -> -driverXbox.getRightY(),
+                                                          false);
 
     AbsoluteFieldDrive closedFieldAbsoluteDrive = new AbsoluteFieldDrive(drivebase,
                                                                          () ->
@@ -73,27 +69,20 @@ public class RobotContainer
                                                                                                     OperatorConstants.LEFT_Y_DEADBAND),
                                                                          () -> MathUtil.applyDeadband(driverXbox.getLeftX(),
                                                                                                       OperatorConstants.LEFT_X_DEADBAND),
-                                                                         () -> driverXbox.getRawAxis(4));
+                                                                         () -> driverXbox.getRawAxis(4), false);
     TeleopDrive simClosedFieldRel = new TeleopDrive(drivebase,
                                                     () -> MathUtil.applyDeadband(driverXbox.getLeftY(),
                                                                                  OperatorConstants.LEFT_Y_DEADBAND),
                                                     () -> MathUtil.applyDeadband(driverXbox.getLeftX(),
                                                                                  OperatorConstants.LEFT_X_DEADBAND),
-                                                    () -> driverXbox.getRawAxis(2), () -> true);
+                                                    () -> driverXbox.getRawAxis(2), () -> true, false, true);
     TeleopDrive closedFieldRel = new TeleopDrive(
         drivebase,
         () -> MathUtil.applyDeadband(driverController.getY(), OperatorConstants.LEFT_Y_DEADBAND),
         () -> MathUtil.applyDeadband(driverController.getX(), OperatorConstants.LEFT_X_DEADBAND),
-        () -> -driverController.getRawAxis(3), () -> true);
-  // Add commands to the autonomous command chooser
-  m_chooser.setDefaultOption("Newexampleauto", Autos.Newexampleauto(drivebase));
-  m_chooser.addOption("exampleauto", Autos.exampleAuto(drivebase));
-  m_chooser.addOption("otherexampleauto", Autos.otherexampleauto(drivebase));
-  m_chooser.addOption("123exampleauto", Autos.onetwothree_exampleauto(drivebase));
+        () -> -driverController.getRawAxis(3), () -> true, false, true);
 
-  // Put the chooser on the dashboard
-SmartDashboard.putData(m_chooser);
-    drivebase.setDefaultCommand(!RobotBase.isSimulation() ? closedAbsoluteDrive : closedFieldAbsoluteDrive);
+    drivebase.setDefaultCommand(!RobotBase.isSimulation() ? closedAbsoluteDrive : closedAbsoluteDrive);
   }
 
   /**
@@ -109,7 +98,7 @@ SmartDashboard.putData(m_chooser);
 
     new JoystickButton(driverXbox, 1).onTrue((new InstantCommand(drivebase::zeroGyro)));
     new JoystickButton(driverXbox, 3).onTrue(new InstantCommand(drivebase::addFakeVisionReading));
-    new JoystickButton(driverXbox, 4).whileTrue(new RepeatCommand(new InstantCommand(drivebase::lock, drivebase)));
+    new JoystickButton(driverXbox, 3).whileTrue(new RepeatCommand(new InstantCommand(drivebase::lock, drivebase)));
   }
 
   /**
@@ -117,10 +106,10 @@ SmartDashboard.putData(m_chooser);
    *
    * @return the command to run in autonomous
    */
-
-
-  public Command getAutonomousCommand() {
-    return m_chooser.getSelected();
+  public Command getAutonomousCommand()
+  {
+    // An example command will be run in autonomous
+    return Autos.exampleAuto(drivebase);
   }
 
   public void setDriveMode()

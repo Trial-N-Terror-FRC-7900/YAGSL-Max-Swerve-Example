@@ -2,10 +2,7 @@ package swervelib.encoders;
 
 import com.revrobotics.AbsoluteEncoder;
 import com.revrobotics.CANSparkMax;
-import com.revrobotics.REVLibError;
 import com.revrobotics.SparkMaxAbsoluteEncoder.Type;
-import edu.wpi.first.wpilibj.DriverStation;
-import java.util.function.Supplier;
 import swervelib.motors.SwerveMotor;
 
 /**
@@ -20,7 +17,7 @@ public class SparkMaxEncoderSwerve extends SwerveAbsoluteEncoder
   public AbsoluteEncoder encoder;
 
   /**
-   * Create the {@link SparkMaxEncoderSwerve} object as a duty cycle from the {@link CANSparkMax} motor.
+   * Create the {@link AbsoluteEncoder} object as a duty cycle. from the {@link CANSparkMax} motor.
    *
    * @param motor            Motor to create the encoder from.
    * @param conversionFactor The conversion factor to set if the output is not from 0 to 360.
@@ -30,29 +27,12 @@ public class SparkMaxEncoderSwerve extends SwerveAbsoluteEncoder
     if (motor.getMotor() instanceof CANSparkMax)
     {
       encoder = ((CANSparkMax) motor.getMotor()).getAbsoluteEncoder(Type.kDutyCycle);
-      configureSparkMax(() -> encoder.setVelocityConversionFactor(conversionFactor));
-      configureSparkMax(() -> encoder.setPositionConversionFactor(conversionFactor));
+      encoder.setVelocityConversionFactor(conversionFactor);
+      encoder.setPositionConversionFactor(conversionFactor);
     } else
     {
       throw new RuntimeException("Motor given to instantiate SparkMaxEncoder is not a CANSparkMax");
     }
-  }
-
-  /**
-   * Run the configuration until it succeeds or times out.
-   *
-   * @param config Lambda supplier returning the error state.
-   */
-  private void configureSparkMax(Supplier<REVLibError> config)
-  {
-    for (int i = 0; i < maximumRetries; i++)
-    {
-      if (config.get() == REVLibError.kOk)
-      {
-        return;
-      }
-    }
-    DriverStation.reportWarning("Failure configuring encoder", true);
   }
 
   /**
@@ -104,16 +84,5 @@ public class SparkMaxEncoderSwerve extends SwerveAbsoluteEncoder
   public Object getAbsoluteEncoder()
   {
     return encoder;
-  }
-
-  /**
-   * Get the velocity in degrees/sec.
-   *
-   * @return velocity in degrees/sec.
-   */
-  @Override
-  public double getVelocity()
-  {
-    return encoder.getVelocity();
   }
 }

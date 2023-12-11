@@ -13,24 +13,23 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.geometry.Twist2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
-import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
-import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.math.util.Units;
-import edu.wpi.first.wpilibj.Notifier;
+import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import swervelib.imu.SwerveIMU;
+import swervelib.math.SwerveKinematics2;
 import swervelib.math.SwerveMath;
+import swervelib.math.SwerveModuleState2;
+import swervelib.math.SwervePoseEstimator2;
 import swervelib.parser.SwerveControllerConfiguration;
 import swervelib.parser.SwerveDriveConfiguration;
 import swervelib.simulation.SwerveIMUSimulation;
@@ -44,9 +43,9 @@ public class SwerveDrive
 {
 
   /**
-   * Swerve Kinematics object.
+   * Swerve Kinematics object utilizing second order kinematics.
    */
-  public final  SwerveDriveKinematics    kinematics;
+  public final  SwerveKinematics2        kinematics;
   /**
    * Swerve drive configuration.
    */
@@ -54,56 +53,38 @@ public class SwerveDrive
   /**
    * Swerve odometry.
    */
-  public final  SwerveDrivePoseEstimator swerveDrivePoseEstimator;
+  public final  SwervePoseEstimator2     swerveDrivePoseEstimator;
   /**
    * Swerve modules.
    */
   private final SwerveModule[]           swerveModules;
   /**
-   * WPILib {@link Notifier} to keep odometry up to date.
-   */
-  private final Notifier                 odometryThread;
-  /**
-   * Odometry lock to ensure thread safety.
-   */
-  private final Lock           odometryLock                                    = new ReentrantLock();
-  /**
    * Field object.
    */
-  public        Field2d        field                                           = new Field2d();
+  public        Field2d                  field                        = new Field2d();
   /**
    * Swerve controller for controlling heading of the robot.
    */
   public        SwerveController         swerveController;
   /**
-   * Standard deviation of encoders and gyroscopes, usually should not change. (meters of position and degrees of
+   * Trustworthiness of the internal model of how motors should be moving Measured in expected standard deviation
+   * (meters of position and degrees of rotation)
+   */
+  public        Matrix<N3, N1>           stateStdDevs                 = VecBuilder.fill(0.1, 0.1, 0.1);
+  /**
+   * Trustworthiness of the vision system Measured in expected standard deviation (meters of position and degrees of
    * rotation)
    */
-  public        Matrix<N3, N1> stateStdDevs                                    = VecBuilder.fill(0.1,
-                                                                                                 0.1,
-                                                                                                 0.1);
-  /**
-   * The standard deviation of the vision measurement, for best accuracy calculate the standard deviation at 2 or more
-   * points and fit a line to it and modify this using {@link SwerveDrive#addVisionMeasurement(Pose2d, double, Matrix)}
-   * with the calculated optimal standard deviation. (Units should be meters per pixel). By optimizing this you can get
-   * vision accurate to inches instead of feet.
-   */
-  public        Matrix<N3, N1> visionMeasurementStdDevs                        = VecBuilder.fill(0.9,
-                                                                                                 0.9,
-                                                                                                 0.9);
+  public        Matrix<N3, N1>           visionMeasurementStdDevs     = VecBuilder.fill(0.9, 0.9, 0.9);
   /**
    * Invert odometry readings of drive motor positions, used as a patch for debugging currently.
    */
-  public        boolean        invertOdometry                                  = false;
+  public        boolean                  invertOdometry               = false;
   /**
    * Correct chassis velocity in {@link SwerveDrive#drive(Translation2d, double, boolean, boolean)} using 254's
    * correction.
    */
-  public        boolean        chassisVelocityCorrection                       = true;
-  /**
-   * Whether to correct heading when driving translationally. Set to true to enable.
-   */
-  public        boolean        headingCorrection                               = false;
+  public        boolean                  chassisVelocityCorrection    = true;
   /**
    * Swerve IMU device for sensing the heading of the robot.
    */
@@ -115,23 +96,11 @@ public class SwerveDrive
   /**
    * Counter to synchronize the modules relative encoder with absolute encoder when not moving.
    */
-  private       int            moduleSynchronizationCounter                    = 0;
+  private       int                      moduleSynchronizationCounter = 0;
   /**
    * The last heading set in radians.
    */
-  private       double         lastHeadingRadians                              = 0;
-  /**
-   * The absolute max speed that your robot can reach while translating in meters per second.
-   */
-  private       double         attainableMaxTranslationalSpeedMetersPerSecond  = 0;
-  /**
-   * The absolute max speed the robot can reach while rotating radians per second.
-   */
-  private       double         attainableMaxRotationalVelocityRadiansPerSecond = 0;
-  /**
-   * Maximum speed of the robot in meters per second.
-   */
-  private       double         maxSpeedMPS;
+  private       double                   lastHeadingRadians           = 0;
 
   /**
    * Creates a new swerve drivebase subsystem. Robot is controlled via the {@link SwerveDrive#drive} method, or via the
@@ -143,18 +112,14 @@ public class SwerveDrive
    * @param config           The {@link SwerveDriveConfiguration} configuration to base the swerve drive off of.
    * @param controllerConfig The {@link SwerveControllerConfiguration} to use when creating the
    *                         {@link SwerveController}.
-   * @param maxSpeedMPS      Maximum speed in meters per second, remember to use {@link Units#feetToMeters(double)} if
-   *                         you have feet per second!
    */
   public SwerveDrive(
-      SwerveDriveConfiguration config, SwerveControllerConfiguration controllerConfig, double maxSpeedMPS)
+      SwerveDriveConfiguration config, SwerveControllerConfiguration controllerConfig)
   {
-    this.maxSpeedMPS = maxSpeedMPS;
     swerveDriveConfiguration = config;
     swerveController = new SwerveController(controllerConfig);
     // Create Kinematics from swerve module locations.
-    kinematics = new SwerveDriveKinematics(config.moduleLocationsMeters);
-    odometryThread = new Notifier(this::updateOdometry);
+    kinematics = new SwerveKinematics2(config.moduleLocationsMeters);
 
     // Create an integrator for angle if the robot is being simulated to emulate an IMU
     // If the robot is real, instantiate the IMU instead.
@@ -171,7 +136,7 @@ public class SwerveDrive
 
     //    odometry = new SwerveDriveOdometry(kinematics, getYaw(), getModulePositions());
     swerveDrivePoseEstimator =
-        new SwerveDrivePoseEstimator(
+        new SwervePoseEstimator2(
             kinematics,
             getYaw(),
             getModulePositions(),
@@ -189,7 +154,7 @@ public class SwerveDrive
 
     if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
     {
-      SwerveDriveTelemetry.maxSpeed = maxSpeedMPS;
+      SwerveDriveTelemetry.maxSpeed = swerveDriveConfiguration.maxSpeed;
       SwerveDriveTelemetry.maxAngularVelocity = swerveController.config.maxAngularVelocity;
       SwerveDriveTelemetry.moduleCount = swerveModules.length;
       SwerveDriveTelemetry.sizeFrontBack = Units.metersToInches(SwerveMath.getSwerveModule(swerveModules, true,
@@ -213,148 +178,13 @@ public class SwerveDrive
       SwerveDriveTelemetry.measuredStates = new double[SwerveDriveTelemetry.moduleCount * 2];
       SwerveDriveTelemetry.desiredStates = new double[SwerveDriveTelemetry.moduleCount * 2];
     }
-
-    odometryThread.startPeriodic(SwerveDriveTelemetry.isSimulation ? 0.01 : 0.02);
   }
 
   /**
-   * Set the odometry update period in seconds.
-   *
-   * @param period period in seconds.
-   */
-  public void setOdometryPeriod(double period)
-  {
-    odometryThread.stop();
-    odometryThread.startPeriodic(period);
-  }
-
-  /**
-   * Stop the odometry thread in favor of manually updating odometry.
-   */
-  public void stopOdometryThread()
-  {
-    odometryThread.stop();
-  }
-
-  /**
-   * Set the conversion factor for the angle/azimuth motor controller.
-   *
-   * @param conversionFactor Angle motor conversion factor for PID, should be generated from
-   *                         {@link SwerveMath#calculateDegreesPerSteeringRotation(double, double)} or calculated.
-   */
-  public void setAngleMotorConversionFactor(double conversionFactor)
-  {
-    for (SwerveModule module : swerveModules)
-    {
-      module.setAngleMotorConversionFactor(conversionFactor);
-    }
-  }
-
-  /**
-   * Set the conversion factor for the drive motor controller.
-   *
-   * @param conversionFactor Drive motor conversion factor for PID, should be generated from
-   *                         {@link SwerveMath#calculateMetersPerRotation(double, double, double)} or calculated.
-   */
-  public void setDriveMotorConversionFactor(double conversionFactor)
-  {
-    for (SwerveModule module : swerveModules)
-    {
-      module.setDriveMotorConversionFactor(conversionFactor);
-    }
-  }
-
-  /**
-   * Set the heading correction capabilities of YAGSL.
-   *
-   * @param state {@link SwerveDrive#headingCorrection} state.
-   */
-  public void setHeadingCorrection(boolean state)
-  {
-    headingCorrection = state;
-  }
-
-  /**
-   * Secondary method of controlling the drive base given velocity and adjusting it for field oriented use.
-   *
-   * @param velocity Velocity of the robot desired.
-   */
-  public void driveFieldOriented(ChassisSpeeds velocity)
-  {
-    ChassisSpeeds fieldOrientedVelocity = ChassisSpeeds.fromFieldRelativeSpeeds(velocity, getYaw());
-    drive(fieldOrientedVelocity);
-  }
-
-  /**
-   * Secondary method of controlling the drive base given velocity and adjusting it for field oriented use.
-   *
-   * @param velocity               Velocity of the robot desired.
-   * @param centerOfRotationMeters The center of rotation in meters, 0 is the center of the robot.
-   */
-  public void driveFieldOriented(ChassisSpeeds velocity, Translation2d centerOfRotationMeters)
-  {
-    ChassisSpeeds fieldOrientedVelocity = ChassisSpeeds.fromFieldRelativeSpeeds(velocity, getYaw());
-    drive(fieldOrientedVelocity, centerOfRotationMeters);
-  }
-
-  /**
-   * Secondary method for controlling the drivebase. Given a simple {@link ChassisSpeeds} set the swerve module states,
-   * to achieve the goal.
-   *
-   * @param velocity The desired robot-oriented {@link ChassisSpeeds} for the robot to achieve.
-   */
-  public void drive(ChassisSpeeds velocity)
-  {
-    drive(velocity, false, new Translation2d());
-  }
-
-  /**
-   * Secondary method for controlling the drivebase. Given a simple {@link ChassisSpeeds} set the swerve module states,
-   * to achieve the goal.
-   *
-   * @param velocity               The desired robot-oriented {@link ChassisSpeeds} for the robot to achieve.
-   * @param centerOfRotationMeters The center of rotation in meters, 0 is the center of the robot.
-   */
-  public void drive(ChassisSpeeds velocity, Translation2d centerOfRotationMeters)
-  {
-    drive(velocity, false, centerOfRotationMeters);
-  }
-
-  /**
-   * The primary method for controlling the drivebase. Takes a {@link Translation2d} and a rotation rate, and calculates
-   * and commands module states accordingly. Can use either open-loop or closed-loop velocity control for the wheel
-   * velocities. Also has field- and robot-relative modes, which affect how the translation vector is used.
-   *
-   * @param translation            {@link Translation2d} that is the commanded linear velocity of the robot, in meters
-   *                               per second. In robot-relative mode, positive x is torwards the bow (front) and
-   *                               positive y is torwards port (left). In field-relative mode, positive x is away from
-   *                               the alliance wall (field North) and positive y is torwards the left wall when looking
-   *                               through the driver station glass (field West).
-   * @param rotation               Robot angular rate, in radians per second. CCW positive. Unaffected by field/robot
-   *                               relativity.
-   * @param fieldRelative          Drive mode. True for field-relative, false for robot-relative.
-   * @param isOpenLoop             Whether to use closed-loop velocity control. Set to true to disable closed-loop.
-   * @param centerOfRotationMeters The center of rotation in meters, 0 is the center of the robot.
-   */
-  public void drive(
-      Translation2d translation, double rotation, boolean fieldRelative, boolean isOpenLoop,
-      Translation2d centerOfRotationMeters)
-  {
-    // Creates a robot-relative ChassisSpeeds object, converting from field-relative speeds if
-    // necessary.
-    ChassisSpeeds velocity =
-        fieldRelative
-        ? ChassisSpeeds.fromFieldRelativeSpeeds(
-            translation.getX(), translation.getY(), rotation, getYaw())
-        : new ChassisSpeeds(translation.getX(), translation.getY(), rotation);
-
-    drive(velocity, isOpenLoop, centerOfRotationMeters);
-  }
-
-  /**
-   * The primary method for controlling the drivebase. Takes a {@link Translation2d} and a rotation rate, and calculates
-   * and commands module states accordingly. Can use either open-loop or closed-loop velocity control for the wheel
-   * velocities. Also has field- and robot-relative modes, which affect how the translation vector is used.
+   * The primary method for controlling the drivebase. Takes a Translation2d and a rotation rate, and calculates and
+   * commands module states accordingly. Can use either open-loop or closed-loop velocity control for the wheel
+   * velocities. Also has field- and robot-relative modes, which affect how the translation vector is used. This method
+   * defaults to no heading correction.
    *
    * @param translation   {@link Translation2d} that is the commanded linear velocity of the robot, in meters per
    *                      second. In robot-relative mode, positive x is torwards the bow (front) and positive y is
@@ -369,6 +199,28 @@ public class SwerveDrive
   public void drive(
       Translation2d translation, double rotation, boolean fieldRelative, boolean isOpenLoop)
   {
+    drive(translation, rotation, fieldRelative, isOpenLoop, false);
+  }
+
+  /**
+   * The primary method for controlling the drivebase. Takes a Translation2d and a rotation rate, and calculates and
+   * commands module states accordingly. Can use either open-loop or closed-loop velocity control for the wheel
+   * velocities. Also has field- and robot-relative modes, which affect how the translation vector is used.
+   *
+   * @param translation       {@link Translation2d} that is the commanded linear velocity of the robot, in meters per
+   *                          second. In robot-relative mode, positive x is torwards the bow (front) and positive y is
+   *                          torwards port (left). In field-relative mode, positive x is away from the alliance wall
+   *                          (field North) and positive y is torwards the left wall when looking through the driver
+   *                          station glass (field West).
+   * @param rotation          Robot angular rate, in radians per second. CCW positive. Unaffected by field/robot
+   *                          relativity.
+   * @param fieldRelative     Drive mode. True for field-relative, false for robot-relative.
+   * @param isOpenLoop        Whether to use closed-loop velocity control. Set to true to disable closed-loop.
+   * @param headingCorrection Whether to correct heading when driving translationally. Set to true to enable.
+   */
+  public void drive(
+      Translation2d translation, double rotation, boolean fieldRelative, boolean isOpenLoop, boolean headingCorrection)
+  {
     // Creates a robot-relative ChassisSpeeds object, converting from field-relative speeds if
     // necessary.
     ChassisSpeeds velocity =
@@ -376,21 +228,6 @@ public class SwerveDrive
         ? ChassisSpeeds.fromFieldRelativeSpeeds(
             translation.getX(), translation.getY(), rotation, getYaw())
         : new ChassisSpeeds(translation.getX(), translation.getY(), rotation);
-
-    drive(velocity, isOpenLoop, new Translation2d());
-  }
-
-  /**
-   * The primary method for controlling the drivebase. Takes a {@link ChassisSpeeds}, and calculates and commands module
-   * states accordingly. Can use either open-loop or closed-loop velocity control for the wheel velocities. Also has
-   * field- and robot-relative modes, which affect how the translation vector is used.
-   *
-   * @param velocity               The chassis speeds to set the robot to achieve.
-   * @param isOpenLoop             Whether to use closed-loop velocity control. Set to true to disable closed-loop.
-   * @param centerOfRotationMeters The center of rotation in meters, 0 is the center of the robot.
-   */
-  public void drive(ChassisSpeeds velocity, boolean isOpenLoop, Translation2d centerOfRotationMeters)
-  {
 
     // Thank you to Jared Russell FRC254 for Open Loop Compensation Code
     // https://www.chiefdelphi.com/t/whitepaper-swerve-drive-skew-and-second-order-kinematics/416964/5
@@ -410,7 +247,7 @@ public class SwerveDrive
     // Originally made by Team 1466 Webb Robotics.
     if (headingCorrection)
     {
-      if (Math.abs(velocity.omegaRadiansPerSecond) < 0.01)
+      if (Math.abs(rotation) < 0.01)
       {
         velocity.omegaRadiansPerSecond =
             swerveController.headingCalculate(lastHeadingRadians, getYaw().getRadians());
@@ -433,11 +270,10 @@ public class SwerveDrive
     }
 
     // Calculate required module states via kinematics
-    SwerveModuleState[] swerveModuleStates = kinematics.toSwerveModuleStates(velocity, centerOfRotationMeters);
+    SwerveModuleState2[] swerveModuleStates = kinematics.toSwerveModuleStates(velocity);
 
     setRawModuleStates(swerveModuleStates, isOpenLoop);
   }
-
 
   /**
    * Set the maximum speeds for desaturation.
@@ -455,8 +291,10 @@ public class SwerveDrive
       double attainableMaxRotationalVelocityRadiansPerSecond)
   {
     setMaximumSpeed(attainableMaxModuleSpeedMetersPerSecond);
-    this.attainableMaxTranslationalSpeedMetersPerSecond = attainableMaxTranslationalSpeedMetersPerSecond;
-    this.attainableMaxRotationalVelocityRadiansPerSecond = attainableMaxRotationalVelocityRadiansPerSecond;
+    swerveDriveConfiguration.attainableMaxTranslationalSpeedMetersPerSecond =
+        attainableMaxTranslationalSpeedMetersPerSecond;
+    swerveDriveConfiguration.attainableMaxRotationalVelocityRadiansPerSecond =
+        attainableMaxRotationalVelocityRadiansPerSecond;
   }
 
   /**
@@ -465,15 +303,16 @@ public class SwerveDrive
    * @param desiredStates A list of SwerveModuleStates to send to the modules.
    * @param isOpenLoop    Whether to use closed-loop velocity control. Set to true to disable closed-loop.
    */
-  private void setRawModuleStates(SwerveModuleState[] desiredStates, boolean isOpenLoop)
+  private void setRawModuleStates(SwerveModuleState2[] desiredStates, boolean isOpenLoop)
   {
     // Desaturates wheel speeds
-    if (attainableMaxTranslationalSpeedMetersPerSecond != 0 || attainableMaxRotationalVelocityRadiansPerSecond != 0)
+    if (swerveDriveConfiguration.attainableMaxTranslationalSpeedMetersPerSecond != 0 ||
+        swerveDriveConfiguration.attainableMaxRotationalVelocityRadiansPerSecond != 0)
     {
-      SwerveDriveKinematics.desaturateWheelSpeeds(desiredStates, getRobotVelocity(),
-                                                  maxSpeedMPS,
-                                                  attainableMaxTranslationalSpeedMetersPerSecond,
-                                                  attainableMaxRotationalVelocityRadiansPerSecond);
+      SwerveKinematics2.desaturateWheelSpeeds(desiredStates, getRobotVelocity(),
+                                              swerveDriveConfiguration.maxSpeed,
+                                              swerveDriveConfiguration.attainableMaxTranslationalSpeedMetersPerSecond,
+                                              swerveDriveConfiguration.attainableMaxRotationalVelocityRadiansPerSecond);
     }
 
     // Sets states
@@ -506,14 +345,14 @@ public class SwerveDrive
    * @param desiredStates A list of SwerveModuleStates to send to the modules.
    * @param isOpenLoop    Whether to use closed-loop velocity control. Set to true to disable closed-loop.
    */
-  public void setModuleStates(SwerveModuleState[] desiredStates, boolean isOpenLoop)
+  public void setModuleStates(SwerveModuleState2[] desiredStates, boolean isOpenLoop)
   {
     setRawModuleStates(kinematics.toSwerveModuleStates(kinematics.toChassisSpeeds(desiredStates)),
                        isOpenLoop);
   }
 
   /**
-   * Set chassis speeds with closed-loop velocity control.
+   * Set chassis speeds with closed-loop velocity control and second order kinematics.
    *
    * @param chassisSpeeds Chassis speeds to set.
    */
@@ -533,11 +372,7 @@ public class SwerveDrive
    */
   public Pose2d getPose()
   {
-
-    odometryLock.lock();
-    Pose2d poseEstimation = swerveDrivePoseEstimator.getEstimatedPosition();
-    odometryLock.unlock();
-    return poseEstimation;
+    return swerveDrivePoseEstimator.getEstimatedPosition();
   }
 
   /**
@@ -574,9 +409,7 @@ public class SwerveDrive
    */
   public void resetOdometry(Pose2d pose)
   {
-    odometryLock.lock();
     swerveDrivePoseEstimator.resetPosition(pose.getRotation(), getModulePositions(), pose);
-    odometryLock.unlock();
     kinematics.toSwerveModuleStates(ChassisSpeeds.fromFieldRelativeSpeeds(0, 0, 0, pose.getRotation()));
   }
 
@@ -598,9 +431,9 @@ public class SwerveDrive
    *
    * @return A list of SwerveModuleStates containing the current module states
    */
-  public SwerveModuleState[] getStates()
+  public SwerveModuleState2[] getStates()
   {
-    SwerveModuleState[] states = new SwerveModuleState[swerveDriveConfiguration.moduleCount];
+    SwerveModuleState2[] states = new SwerveModuleState2[swerveDriveConfiguration.moduleCount];
     for (SwerveModule module : swerveModules)
     {
       states[module.moduleNumber] = module.getState();
@@ -754,8 +587,9 @@ public class SwerveDrive
   }
 
   /**
-   * Set the maximum speed of the drive motors, modified {@link SwerveDrive#maxSpeedMPS} which is used for the
-   * {@link SwerveDrive#setRawModuleStates(SwerveModuleState[], boolean)} function and
+   * Set the maximum speed of the drive motors, modified {@link SwerveControllerConfiguration#maxSpeed} and
+   * {@link SwerveDriveConfiguration#maxSpeed} which is used for the
+   * {@link SwerveDrive#setRawModuleStates(SwerveModuleState2[], boolean)} function and
    * {@link SwerveController#getTargetSpeeds(double, double, double, double, double)} functions. This function overrides
    * what was placed in the JSON and could damage your motor/robot if set too high or unachievable rates.
    *
@@ -763,26 +597,25 @@ public class SwerveDrive
    * @param updateModuleFeedforward Update the swerve module feedforward to account for the new maximum speed. This
    *                                should be true unless you have replaced the drive motor feedforward with
    *                                {@link SwerveDrive#replaceSwerveModuleFeedforward(SimpleMotorFeedforward)}
-   * @param optimalVoltage          Optimal voltage to use for the feedforward.
    */
-  public void setMaximumSpeed(double maximumSpeed, boolean updateModuleFeedforward, double optimalVoltage)
+  public void setMaximumSpeed(double maximumSpeed, boolean updateModuleFeedforward)
   {
-    maxSpeedMPS = maximumSpeed;
-    swerveDriveConfiguration.physicalCharacteristics.optimalVoltage = optimalVoltage;
+    swerveDriveConfiguration.maxSpeed = maximumSpeed;
+    swerveController.config.maxSpeed = maximumSpeed;
     for (SwerveModule module : swerveModules)
     {
+      module.configuration.maxSpeed = maximumSpeed;
       if (updateModuleFeedforward)
       {
-        module.feedforward = SwerveMath.createDriveFeedforward(optimalVoltage,
-                                                               maximumSpeed,
-                                                               swerveDriveConfiguration.physicalCharacteristics.wheelGripCoefficientOfFriction);
+        module.feedforward = module.configuration.createDriveFeedforward();
       }
     }
   }
 
   /**
-   * Set the maximum speed of the drive motors, modified {@link SwerveDrive#maxSpeedMPS} which is used for the
-   * {@link SwerveDrive#setRawModuleStates(SwerveModuleState[], boolean)} function and
+   * Set the maximum speed of the drive motors, modified {@link SwerveControllerConfiguration#maxSpeed} and
+   * {@link SwerveDriveConfiguration#maxSpeed} which is used for the
+   * {@link SwerveDrive#setRawModuleStates(SwerveModuleState2[], boolean)} function and
    * {@link SwerveController#getTargetSpeeds(double, double, double, double, double)} functions. This function overrides
    * what was placed in the JSON and could damage your motor/robot if set too high or unachievable rates. Overwrites the
    * {@link SwerveModule#feedforward}.
@@ -791,7 +624,7 @@ public class SwerveDrive
    */
   public void setMaximumSpeed(double maximumSpeed)
   {
-    setMaximumSpeed(maximumSpeed, true, swerveDriveConfiguration.physicalCharacteristics.optimalVoltage);
+    setMaximumSpeed(maximumSpeed, true);
   }
 
   /**
@@ -803,8 +636,8 @@ public class SwerveDrive
     // Sets states
     for (SwerveModule swerveModule : swerveModules)
     {
-      SwerveModuleState desiredState =
-          new SwerveModuleState(0, swerveModule.configuration.moduleLocation.getAngle());
+      SwerveModuleState2 desiredState =
+          new SwerveModuleState2(0, swerveModule.configuration.moduleLocation.getAngle(), 0);
       if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
       {
         SwerveDriveTelemetry.desiredStates[swerveModule.moduleNumber * 2] =
@@ -859,77 +692,66 @@ public class SwerveDrive
    */
   public void updateOdometry()
   {
-    odometryLock.lock();
-    try
+    // Update odometry
+    swerveDrivePoseEstimator.update(getYaw(), getPitch(), getRoll(), getModulePositions());
+
+    // Update angle accumulator if the robot is simulated
+    if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
     {
-      // Update odometry
-      swerveDrivePoseEstimator.update(getYaw(), getModulePositions());
-
-      // Update angle accumulator if the robot is simulated
-      if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
+      Pose2d[] modulePoses = getSwerveModulePoses(swerveDrivePoseEstimator.getEstimatedPosition());
+      if (SwerveDriveTelemetry.isSimulation)
       {
-        Pose2d[] modulePoses = getSwerveModulePoses(swerveDrivePoseEstimator.getEstimatedPosition());
-        if (SwerveDriveTelemetry.isSimulation)
-        {
-          simIMU.updateOdometry(
-              kinematics,
-              getStates(),
-              modulePoses,
-              field);
-        }
-
-        ChassisSpeeds measuredChassisSpeeds = getRobotVelocity();
-        SwerveDriveTelemetry.measuredChassisSpeeds[1] = measuredChassisSpeeds.vyMetersPerSecond;
-        SwerveDriveTelemetry.measuredChassisSpeeds[0] = measuredChassisSpeeds.vxMetersPerSecond;
-        SwerveDriveTelemetry.measuredChassisSpeeds[2] = Math.toDegrees(measuredChassisSpeeds.omegaRadiansPerSecond);
-        SwerveDriveTelemetry.robotRotation = getYaw().getDegrees();
+        simIMU.updateOdometry(
+            kinematics,
+            getStates(),
+            modulePoses,
+            field);
       }
 
-      if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.LOW.ordinal())
-      {
-        field.setRobotPose(swerveDrivePoseEstimator.getEstimatedPosition());
-      }
-
-      double sumVelocity = 0;
-      for (SwerveModule module : swerveModules)
-      {
-        SwerveModuleState moduleState = module.getState();
-        sumVelocity += Math.abs(moduleState.speedMetersPerSecond);
-        if (SwerveDriveTelemetry.verbosity == TelemetryVerbosity.HIGH)
-        {
-          SmartDashboard.putNumber(
-              "Module[" + module.configuration.name + "] Relative Encoder", module.getRelativePosition());
-          SmartDashboard.putNumber(
-              "Module[" + module.configuration.name + "] Absolute Encoder", module.getAbsolutePosition());
-          SmartDashboard.putNumber(
-                "Module[" + module.configuration.name + "] Absolute Encoder Read Issue", module.getAbsoluteEncoderReadIssue() ? 1 : 0);
-        }
-        if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
-        {
-          SwerveDriveTelemetry.measuredStates[module.moduleNumber * 2] = moduleState.angle.getDegrees();
-          SwerveDriveTelemetry.measuredStates[(module.moduleNumber * 2) + 1] = moduleState.speedMetersPerSecond;
-        }
-      }
-
-      // If the robot isn't moving synchronize the encoders every 100ms (Inspired by democrat's SDS
-      // lib)
-      // To ensure that everytime we initialize it works.
-      if (sumVelocity <= .01 && ++moduleSynchronizationCounter > 5)
-      {
-        synchronizeModuleEncoders();
-        moduleSynchronizationCounter = 0;
-      }
-
-      if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
-      {
-        SwerveDriveTelemetry.updateData();
-      }
-    } catch (Exception e)
-    {
-      odometryLock.unlock();
-      throw e;
+      ChassisSpeeds measuredChassisSpeeds = getRobotVelocity();
+      SwerveDriveTelemetry.measuredChassisSpeeds[1] = measuredChassisSpeeds.vyMetersPerSecond;
+      SwerveDriveTelemetry.measuredChassisSpeeds[0] = measuredChassisSpeeds.vxMetersPerSecond;
+      SwerveDriveTelemetry.measuredChassisSpeeds[2] = Math.toDegrees(measuredChassisSpeeds.omegaRadiansPerSecond);
+      SwerveDriveTelemetry.robotRotation = getYaw().getDegrees();
     }
-    odometryLock.unlock();
+
+    if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.LOW.ordinal())
+    {
+      field.setRobotPose(swerveDrivePoseEstimator.getEstimatedPosition());
+    }
+
+    double sumOmega = 0;
+    for (SwerveModule module : swerveModules)
+    {
+      SwerveModuleState2 moduleState = module.getState();
+      sumOmega += Math.abs(moduleState.omegaRadPerSecond);
+      if (SwerveDriveTelemetry.verbosity == TelemetryVerbosity.HIGH)
+      {
+        SmartDashboard.putNumber(
+            "Module[" + module.configuration.name + "] Relative Encoder", module.getRelativePosition());
+        SmartDashboard.putNumber(
+            "Module[" + module.configuration.name + "] Absolute Encoder", module.getAbsolutePosition());
+      }
+      if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
+      {
+        SwerveDriveTelemetry.measuredStates[module.moduleNumber * 2] = moduleState.angle.getDegrees();
+        SwerveDriveTelemetry.measuredStates[(module.moduleNumber * 2) + 1] = moduleState.speedMetersPerSecond;
+      }
+    }
+
+    // If the robot isn't moving synchronize the encoders every 100ms (Inspired by democrat's SDS
+    // lib)
+    // To ensure that everytime we initialize it works.
+    if (sumOmega <= .01 && ++moduleSynchronizationCounter > 5)
+    {
+      synchronizeModuleEncoders();
+      moduleSynchronizationCounter = 0;
+    }
+
+    if (SwerveDriveTelemetry.verbosity.ordinal() >= TelemetryVerbosity.HIGH.ordinal())
+    {
+      SwerveDriveTelemetry.updateData();
+    }
   }
 
   /**
@@ -966,20 +788,32 @@ public class SwerveDrive
    * AFTER USING THIS FUNCTION!</b> <br /> To update your gyroscope readings directly use
    * {@link SwerveDrive#setGyroOffset(Rotation3d)}.
    *
-   * @param robotPose Robot {@link Pose2d} as measured by vision.
-   * @param timestamp Timestamp the measurement was taken as time since startup, should be taken from
-   *                  {@link Timer#getFPGATimestamp()} or similar sources.
+   * @param robotPose       Robot {@link Pose2d} as measured by vision.
+   * @param timestamp       Timestamp the measurement was taken as time since startup, should be taken from
+   *                        {@link Timer#getFPGATimestamp()} or similar sources.
+   * @param soft            Add vision estimate using the
+   *                        {@link SwerveDrivePoseEstimator#addVisionMeasurement(Pose2d, double)} function, or hard
+   *                        reset odometry with the given position with
+   *                        {@link edu.wpi.first.math.kinematics.SwerveDriveOdometry#resetPosition(Rotation2d,
+   *                        SwerveModulePosition[], Pose2d)}.
+   * @param trustWorthiness Trust level of vision reading when using a soft measurement, used to multiply the standard
+   *                        deviation. Set to 1 for full trust. Higher = Less Weight.
    */
-  public void addVisionMeasurement(Pose2d robotPose, double timestamp)
+  public void addVisionMeasurement(Pose2d robotPose, double timestamp, boolean soft, double trustWorthiness)
   {
-    odometryLock.lock();
-    swerveDrivePoseEstimator.addVisionMeasurement(robotPose, timestamp);
-    Pose2d newOdometry = new Pose2d(swerveDrivePoseEstimator.getEstimatedPosition().getTranslation(),
-                                    robotPose.getRotation());
-    odometryLock.unlock();
+    if (soft)
+    {
+      swerveDrivePoseEstimator.addVisionMeasurement(robotPose, timestamp,
+                                                    visionMeasurementStdDevs.times(1.0 / trustWorthiness));
+    } else
+    {
+      swerveDrivePoseEstimator.resetPosition(
+          robotPose.getRotation(), getModulePositions(), robotPose);
+    }
 
     setGyroOffset(new Rotation3d(0, 0, robotPose.getRotation().getRadians()));
-    resetOdometry(newOdometry);
+    resetOdometry(
+        new Pose2d(swerveDrivePoseEstimator.getEstimatedPosition().getTranslation(), robotPose.getRotation()));
   }
 
   /**
@@ -989,18 +823,19 @@ public class SwerveDrive
    * @param robotPose                Robot {@link Pose2d} as measured by vision.
    * @param timestamp                Timestamp the measurement was taken as time since startup, should be taken from
    *                                 {@link Timer#getFPGATimestamp()} or similar sources.
+   * @param soft                     Add vision estimate using the
+   *                                 {@link SwerveDrivePoseEstimator#addVisionMeasurement(Pose2d, double)} function, or
+   *                                 hard reset odometry with the given position with
+   *                                 {@link edu.wpi.first.math.kinematics.SwerveDriveOdometry#resetPosition(Rotation2d,
+   *                                 SwerveModulePosition[], Pose2d)}.
    * @param visionMeasurementStdDevs Vision measurement standard deviation that will be sent to the
-   *                                 {@link SwerveDrivePoseEstimator}.The standard deviation of the vision measurement,
-   *                                 for best accuracy calculate the standard deviation at 2 or more  points and fit a
-   *                                 line to it with the calculated optimal standard deviation. (Units should be meters
-   *                                 per pixel). By optimizing this you can get * vision accurate to inches instead of
-   *                                 feet.
+   *                                 {@link SwerveDrivePoseEstimator}.
    */
-  public void addVisionMeasurement(Pose2d robotPose, double timestamp,
+  public void addVisionMeasurement(Pose2d robotPose, double timestamp, boolean soft,
                                    Matrix<N3, N1> visionMeasurementStdDevs)
   {
     this.visionMeasurementStdDevs = visionMeasurementStdDevs;
-    addVisionMeasurement(robotPose, timestamp);
+    addVisionMeasurement(robotPose, timestamp, soft, 1);
   }
 
 
@@ -1025,7 +860,7 @@ public class SwerveDrive
    * Helper function to get the {@link SwerveDrive#swerveController} for the {@link SwerveDrive} which can be used to
    * generate {@link ChassisSpeeds} for the robot to orient it correctly given axis or angles, and apply
    * {@link edu.wpi.first.math.filter.SlewRateLimiter} to given inputs. Important functions to look at are
-   * {@link SwerveController#getTargetSpeeds(double, double, double, double, double)},
+   * {@link SwerveController#getTargetSpeeds(double, double, double, double)},
    * {@link SwerveController#addSlewRateLimiters(SlewRateLimiter, SlewRateLimiter, SlewRateLimiter)},
    * {@link SwerveController#getRawTargetSpeeds(double, double, double)}.
    *
@@ -1059,7 +894,7 @@ public class SwerveDrive
   }
 
   /**
-   * Configure whether the {@link SwerveModuleState} will be optimized to prevent spinning more than 90deg.
+   * Configure whether the {@link SwerveModuleState2} will be optimized to prevent spinning more than 90deg.
    *
    * @param optimizationEnabled Whether the module optimization is enabled.
    */
@@ -1069,6 +904,55 @@ public class SwerveDrive
     {
       module.moduleStateOptimization = optimizationEnabled;
     }
+  }
+
+  /**
+   * Enable second order kinematics for simulation and modifying the feedforward. Second order kinematics could increase
+   * accuracy in odometry.
+   *
+   * @param moduleFeedforward Module feedforward to apply should be between [-1, 1] excluding 0.
+   */
+  public void enableSecondOrderKinematics(double moduleFeedforward)
+  {
+    for (SwerveModule module : swerveModules)
+    {
+      module.configuration.moduleSteerFFCL = moduleFeedforward;
+    }
+  }
+
+  /**
+   * Enable second order kinematics with calculated values for the feedforward and return the value used.
+   *
+   * @param motorFreeSpeedRPM Steering motor free speed RPM.
+   * @return The feedforward value used for the last swerve module.
+   */
+  public double enableSecondOrderKinematics(int motorFreeSpeedRPM)
+  {
+    double feedforwardValue = 0;
+    for (SwerveModule module : swerveModules)
+    {
+      feedforwardValue = module.configuration.moduleSteerFFCL = RobotController.getBatteryVoltage() /
+                                                                (2 * Math.PI * (((double) motorFreeSpeedRPM) /
+                                                                                module.configuration.physicalCharacteristics.angleGearRatio) /
+                                                                 60);
+    }
+    return feedforwardValue;
+  }
+
+  /**
+   * Enable second order kinematics for tracking purposes but completely untuned.
+   */
+  public void enableSecondOrderKinematics()
+  {
+    enableSecondOrderKinematics(-0.00000000000000001);
+  }
+
+  /**
+   * Disable second order kinematics.
+   */
+  public void disableSecondOrderKinematics()
+  {
+    enableSecondOrderKinematics(0);
   }
 
 }
