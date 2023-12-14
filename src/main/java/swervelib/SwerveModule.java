@@ -3,10 +3,10 @@ package swervelib;
 import edu.wpi.first.math.controller.SimpleMotorFeedforward;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import swervelib.encoders.SwerveAbsoluteEncoder;
 import swervelib.math.SwerveMath;
-import swervelib.math.SwerveModuleState2;
 import swervelib.motors.SwerveMotor;
 import swervelib.parser.SwerveModuleConfiguration;
 import swervelib.simulation.SwerveModuleSimulation;
@@ -44,11 +44,15 @@ public class SwerveModule
    */
   public  SimpleMotorFeedforward feedforward;
   /**
+   * Maximum speed of the drive motors in meters per second.
+   */
+  public  double                 maxSpeed;
+  /**
    * Last swerve module state applied.
    */
-  public  SwerveModuleState2     lastState;
+  public  SwerveModuleState      lastState;
   /**
-   * Enable {@link SwerveModuleState2} optimizations so the angle is reversed and speed is reversed to ensure the module
+   * Enable {@link SwerveModuleState} optimizations so the angle is reversed and speed is reversed to ensure the module
    * never turns more than 90deg.
    */
   public  boolean                moduleStateOptimization  = true;
@@ -66,8 +70,11 @@ public class SwerveModule
    *
    * @param moduleNumber        Module number for kinematics.
    * @param moduleConfiguration Module constants containing CAN ID's and offsets.
+   * @param driveFeedforward    Drive motor feedforward created by
+   *                            {@link SwerveMath#createDriveFeedforward(double, double, double)}.
    */
-  public SwerveModule(int moduleNumber, SwerveModuleConfiguration moduleConfiguration)
+  public SwerveModule(int moduleNumber, SwerveModuleConfiguration moduleConfiguration,
+                      SimpleMotorFeedforward driveFeedforward)
   {
     //    angle = 0;
     //    speed = 0;
@@ -78,7 +85,7 @@ public class SwerveModule
     angleOffset = moduleConfiguration.angleOffset;
 
     // Initialize Feedforward for drive motor.
-    feedforward = configuration.createDriveFeedforward();
+    feedforward = driveFeedforward;
 
     // Create motors from configuration and reset them to defaults.
     angleMotor = moduleConfiguration.angleMotor;
@@ -104,14 +111,14 @@ public class SwerveModule
     }
 
     // Config angle motor/controller
-    angleMotor.configureIntegratedEncoder(moduleConfiguration.getPositionEncoderConversion(false));
+    angleMotor.configureIntegratedEncoder(moduleConfiguration.conversionFactors.angle);
     angleMotor.configurePIDF(moduleConfiguration.anglePIDF);
     angleMotor.configurePIDWrapping(-180, 180);
     angleMotor.setInverted(moduleConfiguration.angleMotorInverted);
     angleMotor.setMotorBrake(false);
 
     // Config drive motor/controller
-    driveMotor.configureIntegratedEncoder(moduleConfiguration.getPositionEncoderConversion(true));
+    driveMotor.configureIntegratedEncoder(moduleConfiguration.conversionFactors.drive);
     driveMotor.configurePIDF(moduleConfiguration.velocityPIDF);
     driveMotor.setInverted(moduleConfiguration.driveMotorInverted);
     driveMotor.setMotorBrake(true);
@@ -126,6 +133,27 @@ public class SwerveModule
 
     lastState = getState();
   }
+
+  /**
+   * Set the voltage compensation for the swerve module motor.
+   *
+   * @param optimalVoltage Nominal voltage for operation to output to.
+   */
+  public void setAngleMotorVoltageCompensation(double optimalVoltage)
+  {
+    angleMotor.setVoltageCompensation(optimalVoltage);
+  }
+
+  /**
+   * Set the voltage compensation for the swerve module motor.
+   *
+   * @param optimalVoltage Nominal voltage for operation to output to.
+   */
+  public void setDriveMotorVoltageCompensation(double optimalVoltage)
+  {
+    driveMotor.setVoltageCompensation(optimalVoltage);
+  }
+
 
   /**
    * Queue synchronization of the integrated angle encoder with the absolute encoder.
@@ -147,19 +175,17 @@ public class SwerveModule
    * @param force        Disables optimizations that prevent movement in the angle motor and forces the desired state
    *                     onto the swerve module.
    */
-  public void setDesiredState(SwerveModuleState2 desiredState, boolean isOpenLoop, boolean force)
+  public void setDesiredState(SwerveModuleState desiredState, boolean isOpenLoop, boolean force)
   {
     if (moduleStateOptimization)
     {
-      desiredState = SwerveModuleState2.optimize(desiredState,
-                                                 Rotation2d.fromDegrees(getAbsolutePosition()),
-                                                 lastState,
-                                                 configuration.moduleSteerFFCL);
+      desiredState = SwerveModuleState.optimize(desiredState,
+                                                Rotation2d.fromDegrees(getAbsolutePosition()));
     }
 
     if (isOpenLoop)
     {
-      double percentOutput = desiredState.speedMetersPerSecond / configuration.maxSpeed;
+      double percentOutput = desiredState.speedMetersPerSecond / maxSpeed;
       driveMotor.set(percentOutput);
     } else
     {
@@ -174,31 +200,28 @@ public class SwerveModule
     if (!force)
     {
       // Prevents module rotation if speed is less than 1%
-      SwerveMath.antiJitter(desiredState, lastState, Math.min(configuration.maxSpeed, 4));
+      SwerveMath.antiJitter(desiredState, lastState, Math.min(maxSpeed, 4));
     }
 
     if (SwerveDriveTelemetry.verbosity == TelemetryVerbosity.HIGH)
     {
       SmartDashboard.putNumber("Module[" + configuration.name + "] Speed Setpoint:", desiredState.speedMetersPerSecond);
       SmartDashboard.putNumber("Module[" + configuration.name + "] Angle Setpoint:", desiredState.angle.getDegrees());
-      SmartDashboard.putNumber("Module[" + configuration.name + "] Omega:",
-                               Math.toDegrees(desiredState.omegaRadPerSecond));
     }
 
     // Prevent module rotation if angle is the same as the previous angle.
     if (desiredState.angle != lastState.angle || synchronizeEncoderQueued)
     {
-      double moduleFF = desiredState.omegaRadPerSecond * configuration.moduleSteerFFCL;
       // Synchronize encoders if queued and send in the current position as the value from the absolute encoder.
       if (absoluteEncoder != null && synchronizeEncoderQueued)
       {
         double absoluteEncoderPosition = getAbsolutePosition();
         angleMotor.setPosition(absoluteEncoderPosition);
-        angleMotor.setReference(desiredState.angle.getDegrees(), moduleFF, absoluteEncoderPosition);
+        angleMotor.setReference(desiredState.angle.getDegrees(), 0, absoluteEncoderPosition);
         synchronizeEncoderQueued = false;
       } else
       {
-        angleMotor.setReference(desiredState.angle.getDegrees(), moduleFF);
+        angleMotor.setReference(desiredState.angle.getDegrees(), 0);
       }
     }
 
@@ -226,21 +249,19 @@ public class SwerveModule
    *
    * @return Current SwerveModule state.
    */
-  public SwerveModuleState2 getState()
+  public SwerveModuleState getState()
   {
     double     velocity;
     Rotation2d azimuth;
-    double     omega;
     if (!SwerveDriveTelemetry.isSimulation)
     {
       velocity = driveMotor.getVelocity();
-      azimuth = Rotation2d.fromDegrees(angleMotor.getPosition());
-      omega = Math.toRadians(angleMotor.getVelocity());
+      azimuth = Rotation2d.fromDegrees(getAbsolutePosition());
     } else
     {
       return simModule.getState();
     }
-    return new SwerveModuleState2(velocity, azimuth, omega);
+    return new SwerveModuleState(velocity, azimuth);
   }
 
   /**
@@ -255,7 +276,7 @@ public class SwerveModule
     if (!SwerveDriveTelemetry.isSimulation)
     {
       position = driveMotor.getPosition();
-      azimuth = Rotation2d.fromDegrees(angleMotor.getPosition());
+      azimuth = Rotation2d.fromDegrees(getAbsolutePosition());
     } else
     {
       return simModule.getPosition();
@@ -316,6 +337,28 @@ public class SwerveModule
   }
 
   /**
+   * Set the conversion factor for the angle/azimuth motor controller.
+   *
+   * @param conversionFactor Angle motor conversion factor for PID, should be generated from
+   *                         {@link SwerveMath#calculateDegreesPerSteeringRotation(double, double)} or calculated.
+   */
+  public void setAngleMotorConversionFactor(double conversionFactor)
+  {
+    angleMotor.configureIntegratedEncoder(conversionFactor);
+  }
+
+  /**
+   * Set the conversion factor for the drive motor controller.
+   *
+   * @param conversionFactor Drive motor conversion factor for PID, should be generated from
+   *                         {@link SwerveMath#calculateMetersPerRotation(double, double, double)} or calculated.
+   */
+  public void setDriveMotorConversionFactor(double conversionFactor)
+  {
+    driveMotor.configureIntegratedEncoder(conversionFactor);
+  }
+
+  /**
    * Get the angle {@link SwerveMotor} for the {@link SwerveModule}.
    *
    * @return {@link SwerveMotor} for the angle/steering motor of the module.
@@ -343,5 +386,18 @@ public class SwerveModule
   public SwerveModuleConfiguration getConfiguration()
   {
     return configuration;
+  }
+
+  /**
+   * Get if the last Absolute Encoder had a read issue, such as it does not exist.
+   *
+   * @return If the last Absolute Encoder had a read issue, or absolute encoder does not exist.
+   */
+  public boolean getAbsoluteEncoderReadIssue()
+  {
+    if(absoluteEncoder == null)
+      return true;
+    else
+      return absoluteEncoder.readingError;
   }
 }
