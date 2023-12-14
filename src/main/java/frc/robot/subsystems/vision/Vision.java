@@ -13,9 +13,9 @@ import org.photonvision.EstimatedRobotPose;
 import org.photonvision.PhotonCamera;
 import org.photonvision.PhotonPoseEstimator;
 import org.photonvision.PhotonPoseEstimator.PoseStrategy;
-import org.photonvision.simulation.PhotonCameraSim;
-import org.photonvision.simulation.SimCameraProperties;
-import org.photonvision.simulation.VisionSystemSim;
+//import org.photonvision.simulation.PhotonCameraSim;
+//import org.photonvision.simulation.SimCameraProperties;
+//import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonPipelineResult;
 import swervelib.telemetry.SwerveDriveTelemetry;
 import java.io.IOException;
@@ -28,8 +28,8 @@ public class Vision {
     private double lastEstTimestamp = 0;
 
     // Simulation
-    private PhotonCameraSim cameraSim;
-    private VisionSystemSim visionSim;
+    //private PhotonCameraSim cameraSim;
+    //private VisionSystemSim visionSim;
     public AprilTagFieldLayout kTagLayout;
 
     public Vision() {
@@ -41,15 +41,19 @@ public class Vision {
             e.printStackTrace();
         }
         
-        photonEstimator = new PhotonPoseEstimator(kTagLayout, PoseStrategy.MULTI_TAG_PNP_ON_COPROCESSOR, camera, kRobotToCam);
+
+        /*
+        FIX FOR 2024 CHANGE PoseStrategy to PoseStrategy.MULTI_TAG_PNP_ON_COPROCESSOR
+         */
+        photonEstimator = new PhotonPoseEstimator(kTagLayout, PoseStrategy.MULTI_TAG_PNP, camera, kRobotToCam);
         photonEstimator.setMultiTagFallbackStrategy(PoseStrategy.LOWEST_AMBIGUITY);
 
         // ----- Simulation
-        if (SwerveDriveTelemetry.isSimulation) {
+        /*if (SwerveDriveTelemetry.isSimulation) {
             // Create the vision system simulation which handles cameras and targets on the field.
-            visionSim = new VisionSystemSim("main");
+            //visionSim = new VisionSystemSim("main");
             // Add all the AprilTags inside the tag layout as visible targets to this simulated field.
-            visionSim.addAprilTags(kTagLayout);
+            //visionSim.addAprilTags(kTagLayout);
             // Create simulated camera properties. These can be set to mimic your actual camera.
             var cameraProp = new SimCameraProperties();
             cameraProp.setCalibration(960, 720, Rotation2d.fromDegrees(90));
@@ -59,12 +63,12 @@ public class Vision {
             cameraProp.setLatencyStdDevMs(15);
             // Create a PhotonCameraSim which will update the linked PhotonCamera's values with visible
             // targets.
-            cameraSim = new PhotonCameraSim(camera, cameraProp);
+            //cameraSim = new PhotonCameraSim(camera, cameraProp);
             // Add the simulated camera to view the targets on this simulated field.
-            visionSim.addCamera(cameraSim, kRobotToCam);
+            //visionSim.addCamera(cameraSim, kRobotToCam);
 
-            cameraSim.enableDrawWireframe(true);
-        }
+            //cameraSim.enableDrawWireframe(true);
+        }*/
     }
 
     public PhotonPipelineResult getLatestResult() {
@@ -82,7 +86,7 @@ public class Vision {
         var visionEst = photonEstimator.update();
         double latestTimestamp = camera.getLatestResult().getTimestampSeconds();
         boolean newResult = Math.abs(latestTimestamp - lastEstTimestamp) > 1e-5;
-        if (SwerveDriveTelemetry.isSimulation) {
+        /*if (SwerveDriveTelemetry.isSimulation) {
             visionEst.ifPresentOrElse(
                     est ->
                             getSimDebugField()
@@ -91,7 +95,7 @@ public class Vision {
                     () -> {
                         if (newResult) getSimDebugField().getObject("VisionEstimation").setPoses();
                     });
-        }
+        }*/
         if (newResult) lastEstTimestamp = latestTimestamp;
         return visionEst;
     }
@@ -130,17 +134,17 @@ public class Vision {
     // ----- Simulation
 
     public void simulationPeriodic(Pose2d robotSimPose) {
-        visionSim.update(robotSimPose);
+        //visionSim.update(robotSimPose);
     }
 
     /** Reset pose history of the robot in the vision system simulation. */
     public void resetSimPose(Pose2d pose) {
-        if (SwerveDriveTelemetry.isSimulation) visionSim.resetRobotPose(pose);
+        //if (SwerveDriveTelemetry.isSimulation) visionSim.resetRobotPose(pose);
     }
 
     /** A Field2d for visualizing our robot and objects on the field. */
-    public Field2d getSimDebugField() {
-        if (!SwerveDriveTelemetry.isSimulation) return null;
-        return visionSim.getDebugField();
-    }
+    //public Field2d getSimDebugField() {
+    //    if (!SwerveDriveTelemetry.isSimulation) return null;
+        //return visionSim.getDebugField();
+    //}
 }
